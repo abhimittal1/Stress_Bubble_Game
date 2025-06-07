@@ -30,7 +30,7 @@ bubble_lifespan = 3000  # start with 3 seconds
 # Breathing trainer
 breath_min = 50
 breath_max = 150
-breath_duration = 4000
+breath_duration = 2000
 breath_start_time = pygame.time.get_ticks()
 
 # Game states
