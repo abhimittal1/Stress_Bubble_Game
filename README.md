@@ -18,7 +18,6 @@ This is my second game development project — combining stress relief through b
 
 ## 📸 Screenshot
 
-> Add a screenshot of the gameplay here if you'd like!
 ![Game screenshots](media/SS1.jpg)
 ![Game screenshots](media/SS2.jpg)
 ![Game screenshots](media/SS3.jpg)
@@ -97,9 +96,3 @@ python main.py
 
 **Abhishek Mittal**
 Final year BTech student exploring Python & Game Dev.
-
-
-You can copy and paste this entire content into your `README.md` file.
-
-Let me know if you’d like me to generate a matching project folder structure, GitHub thumbnail image, or badges like Python version, stars, etc.
-
