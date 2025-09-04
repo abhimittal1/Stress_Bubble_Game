@@ -1,6 +1,9 @@
 import pygame
 import random
 import math
+import json
+import os
+from datetime import datetime
 
 # Initialize Pygame
 pygame.init()
@@ -54,7 +57,70 @@ fps = 60
 WELCOME_STATE = 'welcome'
 GAME_STATE = 'game'
 GAME_OVER_STATE = 'game_over'
+LEADERBOARD_STATE = 'leaderboard'
+NAME_INPUT_STATE = 'name_input'
 current_state = WELCOME_STATE
+
+# Leaderboard system
+LEADERBOARD_FILE = "bubble_pop_scores.json"
+MAX_LEADERBOARD_ENTRIES = 10
+
+class LeaderboardManager:
+    def __init__(self):
+        self.scores = self.load_scores()
+    
+    def load_scores(self):
+        try:
+            if os.path.exists(LEADERBOARD_FILE):
+                with open(LEADERBOARD_FILE, 'r') as f:
+                    return json.load(f)
+            return []
+        except:
+            return []
+    
+    def save_scores(self):
+        try:
+            with open(LEADERBOARD_FILE, 'w') as f:
+                json.dump(self.scores, f, indent=2)
+        except:
+            pass
+    
+    def add_score(self, name, score, level, date=None):
+        if date is None:
+            date = datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        entry = {
+            'name': name,
+            'score': score,
+            'level': level,
+            'date': date
+        }
+        
+        self.scores.append(entry)
+        self.scores.sort(key=lambda x: x['score'], reverse=True)
+        self.scores = self.scores[:MAX_LEADERBOARD_ENTRIES]
+        self.save_scores()
+    
+    def is_high_score(self, score):
+        if len(self.scores) < MAX_LEADERBOARD_ENTRIES:
+            return True
+        return score > self.scores[-1]['score']
+    
+    def get_rank(self, score):
+        rank = 1
+        for entry in self.scores:
+            if score > entry['score']:
+                return rank
+            rank += 1
+        return rank if len(self.scores) < MAX_LEADERBOARD_ENTRIES else None
+
+leaderboard = LeaderboardManager()
+
+# Name input system
+player_name = ""
+name_input_active = False
+cursor_visible = True
+cursor_timer = 0
 
 # Welcome screen floating bubbles with water colors
 welcome_bubbles = []
@@ -351,12 +417,12 @@ def draw_welcome_screen():
         screen.blit(bubble_surface, (bubble['x'] - current_radius - 4, bubble['y'] - current_radius - 4))
     
     # Main card container
-    card_width, card_height = 480, 540
+    card_width, card_height = 480, 580
     card_rect = pygame.Rect(screen_width//2 - card_width//2, screen_height//2 - card_height//2, card_width, card_height)
     draw_soft_card(screen, card_rect)
     
     # Water-themed app icon
-    icon_rect = pygame.Rect(screen_width//2 - 35, screen_height//2 - 230, 70, 70)
+    icon_rect = pygame.Rect(screen_width//2 - 35, screen_height//2 - 250, 70, 70)
     pygame.draw.circle(screen, ACCENT_COLOR, icon_rect.center, 35)
     pygame.draw.circle(screen, BUBBLE_HIGHLIGHT, (icon_rect.centerx - 10, icon_rect.centery - 10), 8)
     pygame.draw.circle(screen, BUBBLE_HIGHLIGHT, (icon_rect.centerx + 6, icon_rect.centery + 6), 6)
@@ -364,16 +430,16 @@ def draw_welcome_screen():
     
     # Title with water blue color
     title_text = font_title.render("Bubble Pop", True, TEXT_PRIMARY)
-    title_rect = title_text.get_rect(center=(screen_width//2, screen_height//2 - 140))
+    title_rect = title_text.get_rect(center=(screen_width//2, screen_height//2 - 160))
     screen.blit(title_text, title_rect)
     
     # Water-themed subtitle
     subtitle_text = font_subtitle.render("Dive into Calm • Breathe & Flow", True, TEXT_SECONDARY)
-    subtitle_rect = subtitle_text.get_rect(center=(screen_width//2, screen_height//2 - 105))
+    subtitle_rect = subtitle_text.get_rect(center=(screen_width//2, screen_height//2 - 125))
     screen.blit(subtitle_text, subtitle_rect)
     
     # Features section with water-inspired descriptions
-    features_y_start = screen_height//2 - 60
+    features_y_start = screen_height//2 - 80
     features = [
         ("🫧", "Gently pop bubbles like ocean waves"),
         ("🌊", "Practice flowing breathing exercises"),
@@ -392,26 +458,192 @@ def draw_welcome_screen():
         feature_text = font_small.render(text, True, TEXT_SECONDARY)
         screen.blit(feature_text, (screen_width//2 - 160, y_pos + 1))
     
-    # Water-themed start button
-    button_width, button_height = 220, 50
-    start_button_rect = pygame.Rect(screen_width//2 - button_width//2, screen_height//2 + 100, button_width, button_height)
+    # Buttons
+    button_width, button_height = 200, 45
+    start_button_rect = pygame.Rect(screen_width//2 - button_width//2, screen_height//2 + 80, button_width, button_height)
+    leaderboard_button_rect = pygame.Rect(screen_width//2 - button_width//2, screen_height//2 + 135, button_width, button_height)
     
-    # Check hover state
+    # Check hover states
     mouse_pos = pygame.mouse.get_pos()
-    is_hovering = start_button_rect.collidepoint(mouse_pos)
+    start_hovering = start_button_rect.collidepoint(mouse_pos)
+    leaderboard_hovering = leaderboard_button_rect.collidepoint(mouse_pos)
     
-    draw_soft_button(screen, start_button_rect, "DIVE IN", font_medium, is_hovering, True)
+    draw_soft_button(screen, start_button_rect, "DIVE IN", font_medium, start_hovering, True)
+    draw_soft_button(screen, leaderboard_button_rect, "🏆 LEADERBOARD", font_medium, leaderboard_hovering, False)
     
     # Gentle instruction text
-    instruction_text = font_small.render("Press SPACE or click to start flowing", True, TEXT_SECONDARY)
-    instruction_rect = instruction_text.get_rect(center=(screen_width//2, screen_height//2 + 180))
+    instruction_text = font_small.render("Press SPACE to start • L for leaderboard", True, TEXT_SECONDARY)
+    instruction_rect = instruction_text.get_rect(center=(screen_width//2, screen_height//2 + 200))
     screen.blit(instruction_text, instruction_rect)
     
     # Water-themed credits
     credits_text = pygame.font.SysFont('Segoe UI', 12).render("Flow with the rhythm of calm waters", True, (TEXT_SECONDARY[0], TEXT_SECONDARY[1], TEXT_SECONDARY[2], 100))
     screen.blit(credits_text, (screen_width//2 - credits_text.get_width()//2, screen_height - 25))
     
-    return start_button_rect
+    return start_button_rect, leaderboard_button_rect
+
+def draw_leaderboard():
+    # Water gradient background
+    draw_gradient_background()
+    
+    # Update floating bubbles
+    for bubble in welcome_bubbles:
+        bubble['pulse'] += bubble['pulse_speed']
+        pulse_scale = 1 + 0.03 * math.sin(bubble['pulse'])
+        bubble['x'] += bubble['speed_x'] * 0.3
+        bubble['y'] += bubble['speed_y'] * 0.3
+        
+        if bubble['x'] <= bubble['radius'] or bubble['x'] >= screen_width - bubble['radius']:
+            bubble['speed_x'] *= -1
+        if bubble['y'] <= bubble['radius'] or bubble['y'] >= screen_height - bubble['radius']:
+            bubble['speed_y'] *= -1
+    
+    # Leaderboard card
+    card_width, card_height = 600, 520
+    card_rect = pygame.Rect(screen_width//2 - card_width//2, screen_height//2 - card_height//2, card_width, card_height)
+    draw_soft_card(screen, card_rect)
+    
+    # Title
+    title_text = font_large.render("🏆 Ocean Champions", True, TEXT_PRIMARY)
+    title_rect = title_text.get_rect(center=(screen_width//2, screen_height//2 - 220))
+    screen.blit(title_text, title_rect)
+    
+    subtitle_text = font_subtitle.render("Ride the waves of excellence", True, TEXT_SECONDARY)
+    subtitle_rect = subtitle_text.get_rect(center=(screen_width//2, screen_height//2 - 190))
+    screen.blit(subtitle_text, subtitle_rect)
+    
+    # Headers
+    headers_y = screen_height//2 - 150
+    pygame.draw.line(screen, ACCENT_COLOR, (screen_width//2 - 250, headers_y + 25), (screen_width//2 + 250, headers_y + 25), 2)
+    
+    rank_text = font_medium.render("Rank", True, TEXT_PRIMARY)
+    name_text = font_medium.render("Navigator", True, TEXT_PRIMARY)
+    score_text = font_medium.render("Bubbles", True, TEXT_PRIMARY)
+    level_text = font_medium.render("Level", True, TEXT_PRIMARY)
+    date_text = font_medium.render("Date", True, TEXT_PRIMARY)
+    
+    screen.blit(rank_text, (screen_width//2 - 250, headers_y))
+    screen.blit(name_text, (screen_width//2 - 180, headers_y))
+    screen.blit(score_text, (screen_width//2 - 50, headers_y))
+    screen.blit(level_text, (screen_width//2 + 50, headers_y))
+    screen.blit(date_text, (screen_width//2 + 120, headers_y))
+    
+    # Scores
+    start_y = headers_y + 40
+    for i, entry in enumerate(leaderboard.scores[:8]):  # Show top 8
+        y_pos = start_y + i * 35
+        
+        # Medal emojis for top 3
+        if i == 0:
+            rank_display = "🥇"
+        elif i == 1:
+            rank_display = "🥈"
+        elif i == 2:
+            rank_display = "🥉"
+        else:
+            rank_display = f"{i + 1}"
+        
+        # Alternate row colors
+        if i % 2 == 0:
+            row_rect = pygame.Rect(screen_width//2 - 280, y_pos - 5, 560, 30)
+            pygame.draw.rect(screen, (240, 248, 255, 100), row_rect, border_radius=5)
+        
+        rank_surface = font_medium.render(rank_display, True, TEXT_PRIMARY)
+        name_surface = font_medium.render(entry['name'][:12], True, TEXT_PRIMARY)  # Limit name length
+        score_surface = font_medium.render(str(entry['score']), True, SUCCESS_COLOR)
+        level_surface = font_medium.render(str(entry['level']), True, TEXT_SECONDARY)
+        date_surface = font_small.render(entry['date'][:10], True, TEXT_SECONDARY)  # Show only date part
+        
+        screen.blit(rank_surface, (screen_width//2 - 250, y_pos))
+        screen.blit(name_surface, (screen_width//2 - 180, y_pos))
+        screen.blit(score_surface, (screen_width//2 - 50, y_pos))
+        screen.blit(level_surface, (screen_width//2 + 50, y_pos))
+        screen.blit(date_surface, (screen_width//2 + 120, y_pos))
+    
+    # No scores message
+    if not leaderboard.scores:
+        no_scores_text = font_medium.render("No voyages recorded yet...", True, TEXT_SECONDARY)
+        no_scores_rect = no_scores_text.get_rect(center=(screen_width//2, screen_height//2 - 50))
+        screen.blit(no_scores_text, no_scores_rect)
+        
+        encourage_text = font_small.render("Be the first to make waves!", True, TEXT_SECONDARY)
+        encourage_rect = encourage_text.get_rect(center=(screen_width//2, screen_height//2 - 20))
+        screen.blit(encourage_text, encourage_rect)
+    
+    # Back button
+    back_button_rect = pygame.Rect(screen_width//2 - 100, screen_height//2 + 190, 200, 45)
+    mouse_pos = pygame.mouse.get_pos()
+    back_hovering = back_button_rect.collidepoint(mouse_pos)
+    draw_soft_button(screen, back_button_rect, "🌊 BACK TO SHORE", font_medium, back_hovering, True)
+    
+    # Instructions
+    instruction_text = font_small.render("Press ESC or click to return", True, TEXT_SECONDARY)
+    instruction_rect = instruction_text.get_rect(center=(screen_width//2, screen_height//2 + 250))
+    screen.blit(instruction_text, instruction_rect)
+    
+    return back_button_rect
+
+def draw_name_input():
+    global cursor_visible, cursor_timer
+    
+    # Water gradient background
+    draw_gradient_background()
+    
+    # Name input card
+    card_width, card_height = 500, 300
+    card_rect = pygame.Rect(screen_width//2 - card_width//2, screen_height//2 - card_height//2, card_width, card_height)
+    draw_soft_card(screen, card_rect)
+    
+    # Congratulations message
+    congrats_text = font_large.render("🎉 New High Score!", True, SUCCESS_COLOR)
+    congrats_rect = congrats_text.get_rect(center=(screen_width//2, screen_height//2 - 100))
+    screen.blit(congrats_text, congrats_rect)
+    
+    score_text = font_medium.render(f"You scored {score} points!", True, TEXT_PRIMARY)
+    score_rect = score_text.get_rect(center=(screen_width//2, screen_height//2 - 60))
+    screen.blit(score_text, score_rect)
+    
+    # Name input prompt
+    prompt_text = font_medium.render("Enter your captain's name:", True, TEXT_PRIMARY)
+    prompt_rect = prompt_text.get_rect(center=(screen_width//2, screen_height//2 - 20))
+    screen.blit(prompt_text, prompt_rect)
+    
+    # Name input box
+    input_rect = pygame.Rect(screen_width//2 - 150, screen_height//2 + 10, 300, 40)
+    pygame.draw.rect(screen, WHITE, input_rect, border_radius=5)
+    pygame.draw.rect(screen, ACCENT_COLOR, input_rect, width=2, border_radius=5)
+    
+    # Display current name input with cursor
+    cursor_timer += 1
+    if cursor_timer > 30:  # Blink every 30 frames
+        cursor_visible = not cursor_visible
+        cursor_timer = 0
+    
+    display_text = player_name
+    if cursor_visible and name_input_active:
+        display_text += "|"
+    
+    name_surface = font_medium.render(display_text, True, TEXT_PRIMARY)
+    name_rect = name_surface.get_rect(center=input_rect.center)
+    screen.blit(name_surface, name_rect)
+    
+    # Submit button
+    submit_button_rect = pygame.Rect(screen_width//2 - 100, screen_height//2 + 70, 200, 40)
+    mouse_pos = pygame.mouse.get_pos()
+    submit_hovering = submit_button_rect.collidepoint(mouse_pos)
+    
+    # Only enable button if name is entered
+    if len(player_name.strip()) > 0:
+        draw_soft_button(screen, submit_button_rect, "SET SAIL! ⚓", font_medium, submit_hovering, True)
+    else:
+        draw_soft_button(screen, submit_button_rect, "Enter Name", font_medium, False, False)
+    
+    # Instructions
+    instruction_text = font_small.render("Type your name and press ENTER or click SET SAIL", True, TEXT_SECONDARY)
+    instruction_rect = instruction_text.get_rect(center=(screen_width//2, screen_height//2 + 130))
+    screen.blit(instruction_text, instruction_rect)
+    
+    return submit_button_rect
 
 def spawn_bubble():
     global current_bubble, bubble_spawn_time
@@ -542,8 +774,13 @@ def draw_ui():
         screen.blit(affirmation_surface, (screen_width // 2 - 200, screen_height - 80))
 
 def draw_game_over():
+    global current_state, player_name, name_input_active
+    
     # Water gradient background
     draw_gradient_background(SECONDARY_GRADIENT_TOP, SECONDARY_GRADIENT_BOTTOM)
+    
+    # Check if this is a high score
+    is_high_score = leaderboard.is_high_score(score)
     
     # Game over card
     card_rect = pygame.Rect(screen_width//2 - 250, screen_height//2 - 150, 500, 300)
@@ -565,12 +802,25 @@ def draw_game_over():
     screen.blit(final_score_text, final_score_text.get_rect(center=(screen_width//2, screen_height//2 - 10)))
     screen.blit(final_level_text, final_level_text.get_rect(center=(screen_width//2, screen_height//2 + 20)))
     
-    restart_text = font_small.render("Press R to dive again • ESC for main menu", True, TEXT_SECONDARY)
-    screen.blit(restart_text, restart_text.get_rect(center=(screen_width//2, screen_height//2 + 80)))
+    # High score notification
+    if is_high_score:
+        high_score_text = font_medium.render("🎉 NEW HIGH SCORE! 🎉", True, SUCCESS_COLOR)
+        high_score_rect = high_score_text.get_rect(center=(screen_width//2, screen_height//2 + 50))
+        screen.blit(high_score_text, high_score_rect)
+        
+        enter_name_text = font_small.render("Press N to enter your name for the leaderboard!", True, TEXT_PRIMARY)
+        enter_name_rect = enter_name_text.get_rect(center=(screen_width//2, screen_height//2 + 75))
+        screen.blit(enter_name_text, enter_name_rect)
+    
+    restart_text = font_small.render("Press R to dive again • ESC for main menu • N for name entry", True, TEXT_SECONDARY)
+    screen.blit(restart_text, restart_text.get_rect(center=(screen_width//2, screen_height//2 + 110)))
 
 # Main loop
 running = True
 start_button_rect = None
+leaderboard_button_rect = None
+back_button_rect = None
+submit_button_rect = None
 
 while running:
     now = pygame.time.get_ticks()
@@ -584,10 +834,46 @@ while running:
                 if event.key == pygame.K_SPACE:
                     current_state = GAME_STATE
                     reset_game()
+                elif event.key == pygame.K_l:
+                    current_state = LEADERBOARD_STATE
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if start_button_rect and start_button_rect.collidepoint(event.pos):
                     current_state = GAME_STATE
                     reset_game()
+                elif leaderboard_button_rect and leaderboard_button_rect.collidepoint(event.pos):
+                    current_state = LEADERBOARD_STATE
+
+        elif current_state == LEADERBOARD_STATE:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    current_state = WELCOME_STATE
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if back_button_rect and back_button_rect.collidepoint(event.pos):
+                    current_state = WELCOME_STATE
+
+        elif current_state == NAME_INPUT_STATE:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    if len(player_name.strip()) > 0:
+                        leaderboard.add_score(player_name.strip(), score, level)
+                        player_name = ""
+                        name_input_active = False
+                        current_state = LEADERBOARD_STATE
+                elif event.key == pygame.K_BACKSPACE:
+                    player_name = player_name[:-1]
+                elif event.key == pygame.K_ESCAPE:
+                    player_name = ""
+                    name_input_active = False
+                    current_state = WELCOME_STATE
+                else:
+                    if len(player_name) < 15 and event.unicode.isprintable():
+                        player_name += event.unicode
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if submit_button_rect and submit_button_rect.collidepoint(event.pos) and len(player_name.strip()) > 0:
+                    leaderboard.add_score(player_name.strip(), score, level)
+                    player_name = ""
+                    name_input_active = False
+                    current_state = LEADERBOARD_STATE
 
         elif current_state == GAME_OVER_STATE:
             if event.type == pygame.KEYDOWN:
@@ -596,6 +882,10 @@ while running:
                     reset_game()
                 elif event.key == pygame.K_ESCAPE:
                     current_state = WELCOME_STATE
+                elif event.key == pygame.K_n and leaderboard.is_high_score(score):
+                    current_state = NAME_INPUT_STATE
+                    name_input_active = True
+                    player_name = ""
 
         elif current_state == GAME_STATE:
             if event.type == pygame.MOUSEBUTTONDOWN and current_phase == POP_PHASE:
@@ -603,7 +893,13 @@ while running:
                 check_bubble_click(pos)
 
     if current_state == WELCOME_STATE:
-        start_button_rect = draw_welcome_screen()
+        start_button_rect, leaderboard_button_rect = draw_welcome_screen()
+        
+    elif current_state == LEADERBOARD_STATE:
+        back_button_rect = draw_leaderboard()
+        
+    elif current_state == NAME_INPUT_STATE:
+        submit_button_rect = draw_name_input()
         
     elif current_state == GAME_OVER_STATE:
         draw_game_over()
